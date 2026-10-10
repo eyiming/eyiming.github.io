@@ -41,7 +41,9 @@ eyiming.github.io/
 ├── index.html         # 网页版简历（Pages 首页，单文件、零依赖）
 ├── RESUME.md          # 简历正文（Markdown，内容单一来源）
 ├── scripts/
-│   └── publish.py     # 一键发布脚本（体检 / 提交 / 推送 / 开启 Pages）
+│   ├── deploy_api.py  # 发布脚本 A：走 GitHub API（代理网络首选，不依赖 git 网络栈）
+│   └── publish.py     # 发布脚本 B：走 git push（内置 Basic 认证 + schannel 回退）
+├── register/          # 注册功能示例（纯静态页面 + Python 后端，与 Pages 无关）
 ├── README.md          # 本文件：仓库说明与维护规范
 ├── DEPLOY.md          # 首次发布到 GitHub 的完整操作指引
 └── LICENSE            # 开源许可（MIT）
@@ -101,13 +103,19 @@ python -m http.server 8000     # 然后访问 http://localhost:8000
 **方式一：一键脚本（推荐）**
 
 ```bash
-python scripts/publish.py check                  # 环境体检，不改动任何文件
-python scripts/publish.py publish --dry-run      # 预演，只看命令不执行
-python scripts/publish.py all --wait             # 体检 → 提交 → 推送 → 开 Pages 并等待上线
+# A 方案：走 GitHub API —— 代理 / 校园网环境首选，不依赖 git 的网络栈
+python scripts/deploy_api.py --dry-run            # 列出将要上传的文件
+python scripts/deploy_api.py --wait               # 提交 + 开 Pages + 等待构建完成
+
+# B 方案：走 git push —— 内置 Basic 认证与 schannel 回退重试
+python scripts/publish.py check                   # 环境体检，不改动任何文件
+python scripts/publish.py publish --dry-run       # 预演，只看命令不执行
+python scripts/publish.py all --wait              # 体检 → 提交 → 推送 → 开 Pages 并等待上线
 ```
 
-脚本仅依赖 Python 标准库，会自动创建远端仓库、配置 origin、推送并开启 Pages。
-凭据用 SSH 公钥，或设置环境变量 `GITHUB_TOKEN`（脚本不会把 token 写入 `.git/config`）。
+两个脚本都只依赖 Python 标准库，都不会把 token 写入 `.git/config`。
+若 `git push` 出现 `CONNECT tunnel failed, response 502`，说明 git 走不通代理，
+**改用 A 方案**（`deploy_api.py`）——它用 GitHub REST API 提交文件，实测在同样网络下可用。
 
 **方式二：手动执行**
 
