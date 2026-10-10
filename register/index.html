@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>注册 · 原地渲染结果示例</title>
+<style>
+  /* 与简历站保持同一套设计变量，风格统一 */
+  :root{
+    --ink:#16181d; --muted:#5b6470; --line:#e4e7ec; --bg:#f6f7f9; --card:#ffffff;
+    --accent:#2563eb; --accent-soft:#eff4ff;
+    --ok-bg:#ecfdf5; --ok-line:#10b981; --ok-text:#065f46;
+    --err-bg:#fef2f2; --err-line:#ef4444; --err-text:#991b1b;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Inter","HarmonyOS Sans SC","PingFang SC","Microsoft YaHei",
+                "Hiragino Sans GB","Source Han Sans SC",sans-serif;
+    font-size:15px; line-height:1.75;
+  }
+  .wrap{max-width:560px; margin:0 auto; padding:40px 20px 64px}
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:14px;
+    box-shadow:0 1px 2px rgba(16,24,40,.04),0 8px 24px rgba(16,24,40,.05);
+    padding:36px 40px;
+  }
+  h1{margin:0 0 6px; font-size:24px; font-weight:700}
+  .sub{margin:0 0 26px; font-size:14px; color:var(--muted)}
+
+  .field{margin-bottom:16px}
+  label{display:block; font-size:13.5px; font-weight:600; margin-bottom:6px}
+  input{
+    width:100%; padding:10px 12px; font-size:14.5px; font-family:inherit;
+    border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink);
+    transition:border-color .15s, box-shadow .15s;
+  }
+  input:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft)}
+  input[aria-invalid="true"]{border-color:var(--err-line); background:#fffafa}
+  .hint{font-size:12.5px; color:var(--muted); margin-top:5px}
+  .field-error{font-size:12.5px; color:var(--err-text); margin-top:5px; min-height:0}
+  .field-error:empty{display:none}
+
+  button{
+    width:100%; margin-top:8px; padding:11px 16px; font-size:15px; font-weight:600;
+    font-family:inherit; color:#fff; background:var(--accent); border:0; border-radius:8px;
+    cursor:pointer; transition:background .15s;
+  }
+  button:hover:not(:disabled){background:#1d4ed8}
+  button:disabled{background:#9db4e8; cursor:not-allowed}
+
+  /* ★ 结果区：始终存在于 DOM 中，只改内容与配色，因此页面不会跳转也不会刷新 */
+  #result{margin-top:22px}
+  #result:empty{display:none}
+  .box{border-radius:10px; padding:14px 16px; font-size:14px; border:1px solid}
+  .box.ok{background:var(--ok-bg); border-color:var(--ok-line); color:var(--ok-text)}
+  .box.err{background:var(--err-bg); border-color:var(--err-line); color:var(--err-text)}
+  .box .title{font-weight:700; margin-bottom:6px; display:flex; align-items:center; gap:6px}
+  .box .msg{margin:0}
+  .box ul{margin:8px 0 0; padding-left:20px}
+  .box li{margin:3px 0}
+  table.info{width:100%; border-collapse:collapse; margin-top:10px; font-size:13.5px}
+  table.info th,table.info td{border:1px solid var(--ok-line); padding:7px 11px; text-align:left}
+  table.info th{background:rgba(16,185,129,.1); width:96px; white-space:nowrap}
+  .code{font-size:12px; opacity:.75; margin-top:8px}
+
+  @media (max-width:640px){
+    .wrap{padding:20px 12px 40px}
+    .card{padding:24px 20px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>创建账号</h1>
+    <p class="sub">提交后结果直接显示在本页，不跳转、不刷新。</p>
+
+    <!-- ★ novalidate：关掉浏览器原生气泡，错误信息统一由我们自己渲染 -->
+    <form id="register-form" novalidate autocomplete="on">
+      <div class="field">
+        <label for="username">用户名</label>
+        <input id="username" name="username" type="text" autocomplete="username"
+               placeholder="3–20 位字母、数字或下划线">
+        <div class="hint">字母、数字、下划线，长度 3–20。</div>
+        <div class="field-error" id="err-username"></div>
+      </div>
+
+      <div class="field">
+        <label for="email">邮箱</label>
+        <input id="email" name="email" type="email" autocomplete="email"
+               placeholder="you@example.com">
+        <div class="field-error" id="err-email"></div>
+      </div>
+
+      <div class="field">
+        <label for="password">密码</label>
+        <input id="password" name="password" type="password" autocomplete="new-password"
+               placeholder="至少 8 位，含字母和数字">
+        <div class="field-error" id="err-password"></div>
+      </div>
+
+      <div class="field">
+        <label for="confirm">确认密码</label>
+        <input id="confirm" name="confirm" type="password" autocomplete="new-password"
+               placeholder="再输入一次">
+        <div class="field-error" id="err-confirm"></div>
+      </div>
+
+      <button id="submit-btn" type="submit">注册</button>
+    </form>
+
+    <!-- ★ 结果容器：role=status + aria-live 让读屏软件也能播报；内容全部由 JS 写入 -->
+    <div id="result" role="status" aria-live="polite"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var API_URL   = '/api/register';
+  var TIMEOUT_MS = 12000;                       // 超时保护，避免按钮永久 loading
+  var FIELDS    = ['username', 'email', 'password', 'confirm'];
+
+  var form      = document.getElementById('register-form');
+  var resultBox = document.getElementById('result');
+  var submitBtn = document.getElementById('submit-btn');
+
+  var submitting = false;                       // 防重复提交标志位
+
+  // ---------------------------------------------------------------- 工具函数
+
+  /** 安全创建元素：一律用 textContent 赋值，杜绝 XSS */
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined && text !== null) node.textContent = String(text);
+    return node;
+  }
+
+  function clearResult() {
+    resultBox.textContent = '';
+    resultBox.className = '';
+    FIELDS.forEach(function (name) {
+      var input = document.getElementById(name);
+      input.removeAttribute('aria-invalid');
+      document.getElementById('err-' + name).textContent = '';
+    });
+  }
+
+  function setLoading(on) {
+    submitBtn.disabled = on;
+    submitBtn.textContent = on ? '提交中…' : '注册';
+  }
+
+  /** 前端轻量校验：只为即时反馈，服务端仍会完整校验一遍 */
+  function validateLocal(v) {
+    var errors = {};
+    if (!v.username) errors.username = '请输入用户名';
+    else if (!/^[A-Za-z0-9_]{3,20}$/.test(v.username)) errors.username = '用户名为 3–20 位字母、数字或下划线';
+    if (!v.email) errors.email = '请输入邮箱';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email)) errors.email = '邮箱格式不正确';
+    if (!v.password) errors.password = '请输入密码';
+    else if (v.password.length < 8) errors.password = '密码至少 8 位';
+    else if (!/[A-Za-z]/.test(v.password) || !/[0-9]/.test(v.password)) errors.password = '密码需同时包含字母和数字';
+    if (v.confirm && v.confirm !== v.password) errors.confirm = '两次输入的密码不一致';
+    return errors;
+  }
+
+  // ---------------------------------------------------------------- 渲染
+
+  /** 渲染成功：展示后端返回的账号信息 */
+  function renderSuccess(data) {
+    var box = el('div', 'box ok');
+    box.appendChild(el('div', 'title', '✅ ' + (data.message || '注册成功')));
+
+    var user = data.data || {};
+    var table = el('table', 'info');
+    [['用户名', user.username], ['邮箱', user.email],
+     ['账号 ID', user.id], ['创建时间', user.created_at]].forEach(function (pair) {
+      if (pair[1] === undefined || pair[1] === null) return;
+      var tr = document.createElement('tr');
+      tr.appendChild(el('th', null, pair[0]));
+      tr.appendChild(el('td', null, pair[1]));
+      table.appendChild(tr);
+    });
+    box.appendChild(table);
+    if (data.code) box.appendChild(el('div', 'code', '状态码：' + data.code));
+
+    resultBox.className = '';
+    resultBox.textContent = '';
+    resultBox.appendChild(box);
+  }
+
+  /** 渲染失败：整体原因 + 字段级原因（同时高亮对应输入框） */
+  function renderFailure(data, httpStatus) {
+    var message = (data && data.message) || '注册失败，请稍后重试';
+    var errors  = (data && data.errors) || {};
+
+    var box = el('div', 'box err');
+    box.appendChild(el('div', 'title', '❌ ' + message));
+
+    var keys = Object.keys(errors);
+    if (keys.length) {
+      var ul = el('ul');
+      keys.forEach(function (name) {
+        ul.appendChild(el('li', null, name + '：' + errors[name]));
+        var input = document.getElementById(name);
+        if (input) {
+          input.setAttribute('aria-invalid', 'true');
+          document.getElementById('err-' + name).textContent = errors[name];
+        }
+      });
+      box.appendChild(ul);
+    } else if (httpStatus) {
+      box.appendChild(el('p', 'msg', 'HTTP ' + httpStatus));
+    }
+    if (data && data.code) box.appendChild(el('div', 'code', '错误码：' + data.code));
+
+    resultBox.className = '';
+    resultBox.textContent = '';
+    resultBox.appendChild(box);
+  }
+
+  function renderNetworkError(err) {
+    var box = el('div', 'box err');
+    box.appendChild(el('div', 'title', '⚠️ 网络异常'));
+    box.appendChild(el('p', 'msg',
+      err && err.name === 'AbortError' ? '请求超时，请检查网络后重试。' : '无法连接服务器，请确认服务已启动。'));
+    resultBox.textContent = '';
+    resultBox.appendChild(box);
+  }
+
+  /**
+   * 解析响应体：后端挂了/被网关拦了时返回的可能是 HTML 错误页，
+   * 直接 res.json() 会抛错，所以先取文本再尝试解析。
+   */
+  async function parseBody(res) {
+    var text = '';
+    try { text = await res.text(); } catch (e) { text = ''; }
+    if (!text) return null;
+    try { return JSON.parse(text); } catch (e) { return null; }
+  }
+
+  // ---------------------------------------------------------------- 提交主流程
+
+  form.addEventListener('submit', async function (event) {
+    // ★★ 核心：阻止表单默认提交。没有这一行，浏览器会发起传统表单提交
+    //    并整页跳转到 action 地址 —— 那就必然刷新页面。
+    event.preventDefault();
+
+    if (submitting) return;
+
+    clearResult();
+
+    var payload = {
+      username: document.getElementById('username').value.trim(),
+      email:    document.getElementById('email').value.trim(),
+      password: document.getElementById('password').value,
+      confirm:  document.getElementById('confirm').value
+    };
+
+    var localErrors = validateLocal(payload);
+    if (Object.keys(localErrors).length > 0) {
+      renderFailure({ ok: false, code: 'VALIDATION_FAILED',
+                      message: '请检查表单填写', errors: localErrors }, null);
+      return;                                  // 本地就不合法，不发请求
+    }
+
+    submitting = true;
+    setLoading(true);
+
+    var controller = new AbortController();
+    var timer = setTimeout(function () { controller.abort(); }, TIMEOUT_MS);
+
+    try {
+      var res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+        cache: 'no-store'
+      });
+
+      // 注意：fetch 只在网络层失败时 reject；HTTP 4xx/5xx 依然 resolve，
+      // 所以必须用 res.ok 判断，不能只看有没有进 catch。
+      var data = await parseBody(res);
+
+      if (!res.ok || !data || data.ok !== true) {
+        renderFailure(data, res.status);
+      } else {
+        renderSuccess(data);
+        form.reset();                          // 成功后清空表单（仍不刷新页面）
+      }
+    } catch (err) {
+      renderNetworkError(err);
+    } finally {
+      clearTimeout(timer);
+      submitting = false;
+      setLoading(false);
+    }
+  });
+
+  // 用户重新输入时清掉该字段的错误标记，避免红框一直挂着
+  FIELDS.forEach(function (name) {
+    document.getElementById(name).addEventListener('input', function (e) {
+      e.target.removeAttribute('aria-invalid');
+      document.getElementById('err-' + name).textContent = '';
+    });
+  });
+})();
+</script>
+</body>
+</html>
